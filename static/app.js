@@ -13,7 +13,6 @@
     rows: $('rows'),
     listMeta: $('listMeta'),
     empty: $('empty'),
-    playAll: $('btnPlayAll'),
 
     nowTitle: $('nowTitle'),
     nowCur: $('nowCur'),
@@ -55,10 +54,14 @@
   const state = {
     index: -1,
     shuffle: false,
-    repeat: 'all',
+    repeat: 'off',
     muted: false,
     volume: 0.8
   };
+
+  /* 播放顺序：随机模式下是打乱后的序列，一轮内不重复 */
+  let order = [];
+  let orderPos = -1;
 
   /* ---------------- 工具 ---------------- */
   function hash(str) {
@@ -387,11 +390,20 @@
     document.body.classList.toggle('is-paused', audio.paused);
     document.body.classList.toggle('is-muted', state.muted || audio.volume === 0);
 
+    const shuffleText = '随机播放：' + (state.shuffle ? '开' : '关');
     el.btnShuffle.classList.toggle('active', state.shuffle);
     el.btnShuffle.setAttribute('aria-pressed', String(state.shuffle));
-    el.btnRepeat.classList.toggle('active', state.repeat !== 'off');
-    el.btnRepeat.setAttribute('aria-pressed', String(state.repeat !== 'off'));
-    el.repeatBadge.hidden = state.repeat !== 'one';
+    el.btnShuffle.title = shuffleText;
+    el.btnShuffle.setAttribute('aria-label', shuffleText);
+
+    const repeatOn = state.repeat === 'one';
+    const repeatText = '单曲循环：' + (repeatOn ? '开' : '关');
+    el.btnRepeat.classList.toggle('active', repeatOn);
+    el.btnRepeat.setAttribute('aria-pressed', String(repeatOn));
+    el.btnRepeat.title = repeatText;
+    el.btnRepeat.setAttribute('aria-label', repeatText);
+    el.repeatBadge.hidden = !repeatOn;
+    audio.loop = repeatOn;
     setFill(el.vol);
 
     if ('mediaSession' in navigator) {
@@ -404,6 +416,11 @@
     if (i < 0 || i >= tracks.length) return;
     state.index = i;
     const t = tracks[i];
+
+    if (order.length === tracks.length) {
+      const p = order.indexOf(i);
+      if (p >= 0) orderPos = p;
+    }
 
     audio.src = urlOf(t.file);
     audio.load();
@@ -421,7 +438,8 @@
   function playAudio() {
     if (state.index < 0) {
       if (!tracks.length) return;
-      load(firstVisibleIndex(), true);
+      const first = state.shuffle && order.length === tracks.length ? order[0] : firstVisibleIndex();
+      load(first, true);
       return;
     }
     audio.play().catch(() => toast('无法播放：' + tracks[state.index].title));
@@ -438,6 +456,75 @@
     return visible ? Number(visible.dataset.i) : 0;
   }
 
+  function shuffledIndices() {
+    const a = tracks.map((_, i) => i);
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = a[i];
+      a[i] = a[j];
+      a[j] = tmp;
+    }
+    return a;
+  }
+
+  /* 重建播放顺序；keepCurrent 为真时把当前曲目放到队首 */
+  function rebuildOrder(keepCurrent) {
+    order = state.shuffle ? shuffledIndices() : tracks.map((_, i) => i);
+    if (state.shuffle && keepCurrent && state.index >= 0) {
+      const p = order.indexOf(state.index);
+      if (p > 0) {
+        order.splice(p, 1);
+        order.unshift(state.index);
+      }
+    }
+    orderPos = state.index >= 0 ? order.indexOf(state.index) : -1;
+  }
+
+  function stopAtEnd() {
+    audio.pause();
+    audio.currentTime = 0;
+    paintProgress();
+    paintButtons();
+  }
+
+  /* dir: 1 = 下一首，-1 = 上一首；auto 表示由播放结束自动触发 */
+  function step(dir, auto) {
+    if (!tracks.length) return;
+    if (order.length !== tracks.length) rebuildOrder(true);
+    if (orderPos < 0) orderPos = order.indexOf(state.index);
+    if (orderPos < 0) orderPos = 0;
+
+    let pos = orderPos + dir;
+    let wrapped = false;
+    if (pos >= order.length) {
+      pos = 0;
+      wrapped = true;
+    } else if (pos < 0) {
+      pos = order.length - 1;
+      wrapped = true;
+    }
+
+    /* 顺序播放到列表末尾就停下；随机模式则重新洗牌继续播 */
+    if (wrapped && auto && dir > 0 && !state.shuffle) {
+      stopAtEnd();
+      return;
+    }
+
+    /* 随机模式跑完一轮后重新洗牌，避免每轮顺序完全一样 */
+    if (wrapped && state.shuffle) {
+      rebuildOrder(false);
+      /* 新一轮第一首不要和刚播完的重复 */
+      if (dir > 0 && order[0] === state.index && order.length > 1) {
+        order[0] = order[1];
+        order[1] = state.index;
+      }
+      pos = dir > 0 ? 0 : order.length - 1;
+    }
+
+    orderPos = pos;
+    load(order[pos], true);
+  }
+
   function next(auto) {
     if (!tracks.length) return;
     if (auto && state.repeat === 'one') {
@@ -445,25 +532,7 @@
       playAudio();
       return;
     }
-
-    let i;
-    if (state.shuffle && tracks.length > 1) {
-      do { i = Math.floor(Math.random() * tracks.length); } while (i === state.index);
-    } else {
-      i = state.index + 1;
-    }
-
-    if (i >= tracks.length) {
-      i = 0;
-      if (auto && state.repeat === 'off') {
-        audio.pause();
-        audio.currentTime = 0;
-        paintProgress();
-        paintButtons();
-        return;
-      }
-    }
-    load(i, true);
+    step(1, auto);
   }
 
   function prev() {
@@ -472,9 +541,7 @@
       audio.currentTime = 0;
       return;
     }
-    let i = state.index - 1;
-    if (i < 0) i = tracks.length - 1;
-    load(i, true);
+    step(-1, false);
   }
 
   /* ---------------- 进度 / 音量 ---------------- */
@@ -631,10 +698,11 @@
 
     if (data) {
       state.shuffle = !!data.shuffle;
-      state.repeat = data.repeat === 'one' || data.repeat === 'off' ? data.repeat : 'all';
-      /* 旧存档可能两者同时为真，这里做一次纠正 */
-      if (state.shuffle) state.repeat = 'off';
+      state.repeat = data.repeat === 'one' ? 'one' : 'off';
+      /* 两者互斥，旧存档若同时为真则保留单曲循环 */
+      if (state.repeat === 'one') state.shuffle = false;
       setVolume(typeof data.volume === 'number' ? data.volume : 0.8, false);
+      rebuildOrder(false);
       if (tracks.length && Number.isInteger(data.index) && data.index >= 0 && data.index < tracks.length) {
         load(data.index, false);
         return;
@@ -643,6 +711,7 @@
       setVolume(0.8, false);
     }
 
+    rebuildOrder(false);
     paint(tracks[0] || null);
   }
 
@@ -665,8 +734,6 @@
     else load(i, true);
   });
 
-  el.playAll.addEventListener('click', () => load(firstVisibleIndex(), true));
-
   el.btnPlay.addEventListener('click', toggle);
   el.imPlay.addEventListener('click', toggle);
   el.btnPrev.addEventListener('click', prev);
@@ -674,19 +741,23 @@
   el.btnNext.addEventListener('click', () => next(false));
   el.imNext.addEventListener('click', () => next(false));
 
-  /* 随机与循环互斥：开启一个会自动关闭另一个 */
+  /* 随机与单曲循环互斥：开一个自动关掉另一个 */
   el.btnShuffle.addEventListener('click', () => {
     state.shuffle = !state.shuffle;
     if (state.shuffle) state.repeat = 'off';
+    rebuildOrder(state.index >= 0);
     paintButtons();
     save();
+    toast(state.shuffle ? '随机播放：开' : '随机播放：关');
   });
 
   el.btnRepeat.addEventListener('click', () => {
-    state.repeat = state.repeat === 'off' ? 'all' : state.repeat === 'all' ? 'one' : 'off';
-    if (state.repeat !== 'off') state.shuffle = false;
+    state.repeat = state.repeat === 'one' ? 'off' : 'one';
+    if (state.repeat === 'one') state.shuffle = false;
+    rebuildOrder(state.index >= 0);
     paintButtons();
     save();
+    toast(state.repeat === 'one' ? '单曲循环：开' : '单曲循环：关');
   });
 
   el.btnMute.addEventListener('click', () => {

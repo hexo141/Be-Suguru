@@ -32,10 +32,6 @@
         <h2 class="section-title">全部曲目</h2>
         <span class="card-description" id="listMeta">—</span>
       </div>
-      <button id="btnPlayAll" class="btn btn-default btn-sm" type="button">
-        <svg class="solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.2v13.6L19.2 12z"/></svg>
-        播放全部
-      </button>
     </div>
 
     <div class="table-container track-wrap">
@@ -83,7 +79,7 @@
       <button id="btnNext" class="btn btn-ghost btn-icon" type="button" title="下一首" aria-label="下一首">
         <svg class="solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.8 6h2.2v12h-2.2z"/><path d="M5 6v12l8.6-6z"/></svg>
       </button>
-      <button id="btnRepeat" class="btn btn-ghost btn-icon" type="button" aria-pressed="true" title="循环模式" aria-label="循环模式">
+      <button id="btnRepeat" class="btn btn-ghost btn-icon" type="button" aria-pressed="false" title="单曲循环" aria-label="单曲循环">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2.5l3.5 3.5L17 9.5"/><path d="M3.5 11V9.5A3.5 3.5 0 0 1 7 6h13.5"/><path d="M7 21.5L3.5 18 7 14.5"/><path d="M20.5 13v1.5A3.5 3.5 0 0 1 17 18H3.5"/></svg>
         <span class="badge badge-default repeat-badge" id="repeatBadge" hidden>1</span>
       </button>
@@ -148,6 +144,6 @@
 <audio id="audio" preload="metadata"></audio>
 
 <script src="static/playlist.js"></script>
-<script src="static/app.js"></script>
+<script src="static/app.js?v=3"></script>
 </body>
 </html>
