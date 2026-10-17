@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Be Suguru · 本地音乐播放器</title>
+<link rel="stylesheet" href="static/shadcn.css">
+<link rel="stylesheet" href="static/player.css">
+</head>
+<body>
+
+<main class="container page-stack">
+
+  <section class="card now-card">
+    <canvas class="viz" id="vizNow" aria-hidden="true"></canvas>
+    <div class="now-body">
+      <h2 class="now-title" id="nowTitle">选择一首歌开始</h2>
+    </div>
+    <div class="seek-row">
+      <span class="time mono" id="nowCur">00:00</span>
+      <div class="progress seek" id="nowSeekBar" role="slider" tabindex="0"
+           aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="progress-indicator" id="nowSeekFill" style="width:0%"></div>
+      </div>
+      <span class="time mono" id="nowDur">00:00</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="list-head">
+      <div class="list-title">
+        <h2 class="section-title">全部曲目</h2>
+        <span class="card-description" id="listMeta">—</span>
+      </div>
+      <button id="btnPlayAll" class="btn btn-default btn-sm" type="button">
+        <svg class="solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.2v13.6L19.2 12z"/></svg>
+        播放全部
+      </button>
+    </div>
+
+    <div class="table-container track-wrap">
+      <table class="table track-table">
+        <thead>
+          <tr>
+            <th class="t-no">#</th>
+            <th class="t-main">曲目</th>
+            <th class="t-tag">标签</th>
+            <th class="t-time">时长</th>
+            <th class="t-act"><span class="sr-only">播放状态</span></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <p class="card-description empty" id="empty" hidden>没有匹配的曲目</p>
+  </section>
+</main>
+
+<footer class="player-bar">
+  <div class="mini">
+    <span class="mini-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v11"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="15" r="2.5"/></svg>
+    </span>
+    <div class="mini-copy">
+      <p class="mini-title" id="miniTitle">未播放</p>
+      <span class="card-description" id="miniArtist">—</span>
+    </div>
+  </div>
+
+  <div class="player-main">
+    <div class="controls">
+      <button id="btnShuffle" class="btn btn-ghost btn-icon" type="button" aria-pressed="false" title="随机播放" aria-label="随机播放">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M16 21h5v-5"/><path d="M21 21l-7-7"/><path d="M3 7h4l3 3"/><path d="M3 17h4l10-10"/></svg>
+      </button>
+      <button id="btnPrev" class="btn btn-ghost btn-icon" type="button" title="上一首" aria-label="上一首">
+        <svg class="solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6h2.2v12H7z"/><path d="M19 6v12l-8.6-6z"/></svg>
+      </button>
+      <button id="btnPlay" class="btn btn-default btn-icon play-btn" type="button" title="播放 / 暂停" aria-label="播放 / 暂停">
+        <svg class="i-play solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.2v13.6L19.2 12z"/></svg>
+        <svg class="i-pause solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 5h3.2v14H7.4zM13.4 5h3.2v14h-3.2z"/></svg>
+      </button>
+      <button id="btnNext" class="btn btn-ghost btn-icon" type="button" title="下一首" aria-label="下一首">
+        <svg class="solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.8 6h2.2v12h-2.2z"/><path d="M5 6v12l8.6-6z"/></svg>
+      </button>
+      <button id="btnRepeat" class="btn btn-ghost btn-icon" type="button" aria-pressed="true" title="循环模式" aria-label="循环模式">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2.5l3.5 3.5L17 9.5"/><path d="M3.5 11V9.5A3.5 3.5 0 0 1 7 6h13.5"/><path d="M7 21.5L3.5 18 7 14.5"/><path d="M20.5 13v1.5A3.5 3.5 0 0 1 17 18H3.5"/></svg>
+        <span class="badge badge-default repeat-badge" id="repeatBadge" hidden>1</span>
+      </button>
+    </div>
+
+    <div class="seek-row">
+      <span class="time mono" id="cur">00:00</span>
+      <div class="progress seek" id="seekBar" role="slider" tabindex="0"
+           aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="progress-indicator" id="seekFill" style="width:0%"></div>
+      </div>
+      <span class="time mono" id="dur">00:00</span>
+    </div>
+  </div>
+
+  <div class="player-extra">
+    <button id="btnMute" class="btn btn-ghost btn-icon" type="button" title="静音" aria-label="静音">
+      <svg class="i-vol" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6.4 9H3v6h3.4L11 19z"/><path d="M15.2 9.2a4 4 0 0 1 0 5.6"/><path d="M18 6.5a8 8 0 0 1 0 11"/></svg>
+      <svg class="i-mute" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6.4 9H3v6h3.4L11 19z"/><path d="M16 10l4 4"/><path d="M20 10l-4 4"/></svg>
+    </button>
+    <input id="vol" class="range vol-range" type="range" min="0" max="100" step="1" value="80" aria-label="音量">
+    <button id="btnImmersive2" class="btn btn-ghost btn-icon" type="button" title="沉浸模式" aria-label="沉浸模式">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/></svg>
+    </button>
+  </div>
+</footer>
+
+<div class="immersive" id="immersive" aria-hidden="true">
+  <canvas class="viz viz-full" id="vizFull" aria-hidden="true"></canvas>
+
+  <div class="immersive-core">
+    <h2 class="immersive-title" id="imTitle">—</h2>
+  </div>
+
+  <div class="immersive-ctrl">
+    <button id="imPrev" class="btn btn-ghost btn-icon" type="button" aria-label="上一首">
+      <svg class="solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6h2.2v12H7z"/><path d="M19 6v12l-8.6-6z"/></svg>
+    </button>
+    <button id="imPlay" class="btn btn-default btn-icon play-btn" type="button" aria-label="播放 / 暂停">
+      <svg class="i-play solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.2v13.6L19.2 12z"/></svg>
+      <svg class="i-pause solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 5h3.2v14H7.4zM13.4 5h3.2v14h-3.2z"/></svg>
+    </button>
+    <button id="imNext" class="btn btn-ghost btn-icon" type="button" aria-label="下一首">
+      <svg class="solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.8 6h2.2v12h-2.2z"/><path d="M5 6v12l8.6-6z"/></svg>
+    </button>
+  </div>
+
+  <div class="immersive-bar">
+    <span class="time mono" id="imCur">00:00</span>
+    <div class="progress seek" id="imSeekBar" role="slider" tabindex="0"
+         aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="progress-indicator" id="imSeekFill" style="width:0%"></div>
+    </div>
+    <span class="time mono" id="imDur">00:00</span>
+  </div>
+
+  <button id="imClose" class="btn btn-outline btn-icon im-close" type="button" aria-label="退出沉浸模式">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
+  </button>
+</div>
+
+<audio id="audio" preload="metadata"></audio>
+
+<script src="static/playlist.js"></script>
+<script src="static/app.js"></script>
+</body>
+</html>
